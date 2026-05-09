@@ -1,4 +1,3 @@
-# Mobile App (Ionic/Capacitor) Dockerfile
 FROM node:20-alpine
 
 WORKDIR /app
@@ -8,7 +7,8 @@ RUN npm install
 
 COPY . .
 
-RUN npm run build
+EXPOSE 19000
+EXPOSE 19001
+EXPOSE 19002
 
-EXPOSE 8100
-CMD ["npx", "ionic", "serve", "--host=0.0.0.0", "--port=8100", "--disable-host-check"]
+CMD ["npx", "expo", "start", "--tunnel", "--non-interactive"]

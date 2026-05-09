@@ -21,7 +21,10 @@ services:
         volumes:
             - ./mobile-app:/app
         ports:
-            - "8100:8100"
+            - "19000:19000"
+            - "19001:19001"
+            - "19002:19002"
+        command: [ "npx", "expo", "start", "--tunnel" ]
         depends_on:
             - backend
     db:
