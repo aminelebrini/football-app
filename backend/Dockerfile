@@ -1,25 +1,25 @@
-# Backend Laravel Dockerfile
-FROM php:8.2-fpm
 
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    zip \
-    unzip \
-    nodejs \
-    npm
+FROM php:8.4-fpm
 
-COPY --from=composer:2.6 /usr/bin/composer /usr/bin/composer
+# Installer les dépendances système nécessaires (optimisé)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    libpq-dev \
+    zip unzip git curl libpng-dev libonig-dev libxml2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Installer les extensions PHP (séparé pour limiter la RAM)
+RUN docker-php-ext-install pdo pdo_pgsql pgsql mbstring exif pcntl bcmath gd
+
+# Installer Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www
-COPY . /var/www
 
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader
-RUN npm install && npm run build || true
-RUN chown -R www-data:www-data /var/www
+# Copier le code
+COPY . .
 
-EXPOSE 9000
+# Installer les dépendances PHP (Composer)
+RUN COMPOSER_ALLOW_SUPERUSER=1 composer install --no-interaction --prefer-dist --optimize-autoloader
+
 CMD ["php-fpm"]
