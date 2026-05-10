@@ -1,4 +1,3 @@
-version: '3.8'
 services:
     backend:
         build: ./backend
@@ -13,18 +12,17 @@ services:
             - .env
         depends_on:
             - db
-    mobile-app:
-        build: ./mobile-app
-        container_name: football-mobile
+    frontend:
+        build: ./frontend
+        container_name: football-frontend
         restart: unless-stopped
         working_dir: /app
         volumes:
-            - ./mobile-app:/app
+            - ./frontend:/app
+            - /app/node_modules
         ports:
-            - "19000:19000"
-            - "19001:19001"
-            - "19002:19002"
-        command: [ "npx", "expo", "start", "--tunnel" ]
+            - "5173:5173"
+        command: [ "npm", "run", "dev", "--", "--host", "0.0.0.0" ]
         depends_on:
             - backend
     db:
