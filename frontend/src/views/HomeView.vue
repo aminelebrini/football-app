@@ -1,17 +1,33 @@
 <script lang="ts">
+import Authentification from '@/components/Authentification.vue'
 import fetchingmatchs from '@/fetchingdata/fetchingmatchs'
 import type { Match } from '@/fetchingdata/fetchingmatchs'
+import fetchingstanding from '@/fetchingdata/fetchingstanding'
+import type { Standing } from '@/fetchingdata/fetchingstanding'
+import fetchingtopstats from '@/fetchingdata/fetchingtopstats'
+import type { TopStats } from '@/fetchingdata/fetchingtopstats'
 
 export default {
   name: 'HomeView',
 
+  components: {
+    Authentification,
+  },
+
   data() {
     return {
+      showAuth: false,
       matches: [] as Match[],
       round: 2,
       status: "live",
       isLoadingMatches: true,
       matchesError: '',
+      standings: [] as Standing[],
+      isLoadingStandings: true,
+      standingsError: '',
+      topStats: null as TopStats | null,
+      isLoadingTopStats: true,
+      topStatsError: '',
       date: new Date().toLocaleDateString('fr-FR', {
         weekday: 'long',
         day: 'numeric',
@@ -29,6 +45,12 @@ export default {
         ) || 0
       )
     },
+    bestDefense(): { team: string; goalsAgainst: number } | null {
+      if (!this.standings.length) return null
+      const best = [...this.standings].sort((a, b) => a.scoresAgainst - b.scoresAgainst)[0]
+      if (!best) return null
+      return { team: best.teamShortName, goalsAgainst: best.scoresAgainst }
+    },
     filteredMatches(): Match[] {
       if (this.status === 'live') {
         return this.matches.filter((m) => m.status === 'live')
@@ -41,7 +63,11 @@ export default {
     },
   },
   async mounted() {
-    await this.loadMatches(this.status)
+    await Promise.all([
+      this.loadMatches(this.status),
+      this.loadStandings(),
+      this.loadTopStats(),
+    ])
   },
   watch: {
     round() {
@@ -89,6 +115,34 @@ export default {
 
       return `${match.homeScore} - ${match.awayScore}`
     },
+
+    async loadStandings() {
+      this.isLoadingStandings = true
+      this.standingsError = ''
+      try {
+        this.standings = await fetchingstanding()
+      } catch (error) {
+        console.error('Erreur pendant le chargement du classement:', error)
+        this.standingsError = 'Impossible de charger le classement.'
+        this.standings = []
+      } finally {
+        this.isLoadingStandings = false
+      }
+    },
+
+    async loadTopStats() {
+      this.isLoadingTopStats = true
+      this.topStatsError = ''
+      try {
+        this.topStats = await fetchingtopstats()
+      } catch (error) {
+        console.error('Erreur pendant le chargement des stats:', error)
+        this.topStatsError = 'Impossible de charger les statistiques.'
+        this.topStats = null
+      } finally {
+        this.isLoadingTopStats = false
+      }
+    },
   },
 }
 </script>
@@ -97,7 +151,7 @@ export default {
   <main class="home-page">
     <input id="dark-mode" class="theme-input" type="checkbox" aria-label="Activer le mode sombre" />
 
-    <SiteHeader />
+    <SiteHeader @login="showAuth = true" />
 
     <section class="hero">
       <div class="hero-content">
@@ -223,40 +277,40 @@ export default {
             </div>
           </div>
 
-          <div class="table-wrap">
+          <div v-if="isLoadingStandings" class="table-wrap">
+            <p style="text-align: center; color: var(--muted); padding: 20px">Chargement du classement...</p>
+          </div>
+
+          <div v-else-if="standingsError" class="table-wrap">
+            <p style="text-align: center; color: var(--danger); padding: 20px">{{ standingsError }}</p>
+          </div>
+
+          <div v-else class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>Club</th>
                   <th>J</th>
+                  <th>G</th>
+                  <th>N</th>
+                  <th>P</th>
+                  <th>BP</th>
+                  <th>BC</th>
+                  <th>+/-</th>
                   <th>Pts</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td><span>1</span> AS FAR</td>
-                  <td>18</td>
-                  <td>38</td>
-                </tr>
-                <tr>
-                  <td><span>2</span> RS Berkane</td>
-                  <td>18</td>
-                  <td>35</td>
-                </tr>
-                <tr>
-                  <td><span>3</span> Raja CA</td>
-                  <td>18</td>
-                  <td>32</td>
-                </tr>
-                <tr>
-                  <td><span>4</span> Wydad AC</td>
-                  <td>18</td>
-                  <td>31</td>
-                </tr>
-                <tr>
-                  <td><span>5</span> FUS Rabat</td>
-                  <td>18</td>
-                  <td>29</td>
+                <tr v-for="s in standings" :key="s.position">
+                  <td><span>{{ s.position }}</span> {{ s.teamShortName }}</td>
+                  <td>{{ s.matches }}</td>
+                  <td>{{ s.wins }}</td>
+                  <td>{{ s.draws }}</td>
+                  <td>{{ s.losses }}</td>
+                  <td>{{ s.scoresFor }}</td>
+                  <td>{{ s.scoresAgainst }}</td>
+                  <td>{{ s.scoreDiff }}</td>
+                  <td><strong>{{ s.points }}</strong></td>
                 </tr>
               </tbody>
             </table>
@@ -271,35 +325,56 @@ export default {
             </div>
           </div>
 
-          <div class="stat-list">
+          <div v-if="isLoadingTopStats" class="stat-list">
+            <article><span>Chargement...</span><strong>...</strong><small>...</small></article>
+          </div>
+
+          <div v-else-if="topStatsError" class="stat-list">
+            <article><span>Erreur</span><strong>{{ topStatsError }}</strong><small>...</small></article>
+          </div>
+
+          <div v-else class="stat-list">
             <article>
               <span>Meilleur buteur</span>
-              <strong>Y. Mehri</strong>
-              <small>12 buts</small>
+              <strong>{{ topStats?.topScorer.name }}</strong>
+              <small>{{ topStats?.topScorer.value }} buts</small>
             </article>
             <article>
               <span>Meilleure defense</span>
-              <strong>RS Berkane</strong>
-              <small>9 buts encaisses</small>
+              <strong>{{ bestDefense?.team }}</strong>
+              <small>{{ bestDefense?.goalsAgainst }} buts encaisses</small>
             </article>
             <article>
-              <span>Serie active</span>
-              <strong>AS FAR</strong>
-              <small>7 matchs sans defaite</small>
+              <span>Clean sheets</span>
+              <strong>{{ topStats?.cleanSheets.name }}</strong>
+              <small>{{ topStats?.cleanSheets.value }} matchs</small>
             </article>
             <article>
               <span>Meilleur passeur</span>
-              <strong>A. El Idrissi</strong>
-              <small>8 passes decisives</small>
+              <strong>{{ topStats?.topAssists.name }}</strong>
+              <small>{{ topStats?.topAssists.value }} passes decisives</small>
             </article>
           </div>
         </section>
       </aside>
     </section>
+    <div v-if="showAuth" class="auth-backdrop" @click.self="showAuth = false">
+      <Authentification @close="showAuth = false" />
+    </div>
   </main>
 </template>
 
 <style scoped>
+.auth-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -655,7 +730,7 @@ h1 {
 
 .dashboard {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.6fr);
+  grid-template-columns: minmax(0, 1.1fr) minmax(380px, 0.9fr);
   gap: 22px;
   padding: 0 clamp(18px, 4vw, 64px) clamp(56px, 7vw, 90px);
 }
@@ -915,3 +990,4 @@ td span {
   }
 }
 </style>
+

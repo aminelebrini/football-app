@@ -24,10 +24,24 @@
       <span class="user-icon" aria-hidden="true">
         <i class="fas fa-user"></i>
       </span>
-      <button class="login-button" type="button">Se connecter</button>
+      <button @click="$emit('login')" class="login-button" type="button">Se connecter</button>
     </div>
   </header>
 </template>
+<script>
+export default {
+  data() {
+    return {
+      isTrue: false,
+    }
+  },
+  methods: {
+    click() {
+      this.isTrue = !this.isTrue
+    }
+  }
+}
+</script>
 
 <style scoped>
 .site-header {
