@@ -3,6 +3,7 @@ export type Match = {
   competition: string
   minute: string
   time: string
+  date: string
   homeTeam: string
   awayTeam: string
   homeScore: number | null
@@ -13,9 +14,14 @@ export type Match = {
 
 const url = 'https://www.sofascore.com/api/v1/unique-tournament/937/season/78750/events/round/'
 
-async function fetchingmatchs(round: number): Promise<Match[]> {
+async function fetchingmatchs(round: number, status: string | null): Promise<Match[]> {
   const response = await fetch(`${url}${round}`)
   const data = await response.json()
+  console.log(data)
+
+  if (status === "") {
+    status = 'live'
+  }
 
   return data.events.map((match: any) => ({
     id: match.id,
@@ -24,6 +30,11 @@ async function fetchingmatchs(round: number): Promise<Match[]> {
     time: new Date(match.startTimestamp * 1000).toLocaleTimeString('fr-FR', {
       hour: '2-digit',
       minute: '2-digit',
+    }),
+    date: new Date(match.startTimestamp * 1000).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
     }),
     homeTeam: match.homeTeam.shortName,
     awayTeam: match.awayTeam.shortName,
@@ -38,5 +49,6 @@ async function fetchingmatchs(round: number): Promise<Match[]> {
           : 'upcoming',
   }))
 }
+
 
 export default fetchingmatchs

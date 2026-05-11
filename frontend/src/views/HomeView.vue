@@ -9,6 +9,7 @@ export default {
     return {
       matches: [] as Match[],
       round: 2,
+      status: "live",
       isLoadingMatches: true,
       matchesError: '',
       date: new Date().toLocaleDateString('fr-FR', {
@@ -20,11 +21,6 @@ export default {
     }
   },
   computed: {
-    mainMatch(): Match | null {
-      if (!this.matches || this.matches.length === 0) return null
-      const found = this.matches.find((m: Match) => m.status === 'live')
-      return found ? found : (this.matches[0] ?? null)
-    },
     totalGoals(): number {
       return (
         this.matches?.reduce(
@@ -33,22 +29,33 @@ export default {
         ) || 0
       )
     },
+    filteredMatches(): Match[] {
+      if (this.status === 'live') {
+        return this.matches.filter((m) => m.status === 'live')
+      } else if (this.status === 'Not started') {
+        return this.matches.filter((m) => m.status === 'upcoming')
+      } else if (this.status === 'Ended') {
+        return this.matches.filter((m) => m.status === 'finished')
+      }
+      return this.matches
+    },
   },
   async mounted() {
-    await this.loadMatches()
+    await this.loadMatches(this.status)
   },
   watch: {
     round() {
-      this.loadMatches()
+      this.loadMatches(this.status)
     },
   },
   methods: {
-    async loadMatches() {
+    async loadMatches(s: string) {
+      this.status = s
       this.isLoadingMatches = true
       this.matchesError = ''
 
       try {
-        this.matches = await fetchingmatchs(this.round)
+        this.matches = await fetchingmatchs(this.round, s)
       } catch (error) {
         console.error('Erreur pendant le chargement des matchs:', error)
         this.matchesError = 'Impossible de charger les matchs pour le moment.'
@@ -69,6 +76,10 @@ export default {
 
     getMatchTime(match: Match) {
       return match.status === 'live' || match.status === 'finished' ? match.minute : match.time
+    },
+
+    getMatchDate(match: Match) {
+      return match.date
     },
 
     formatMatchScore(match: Match) {
@@ -102,46 +113,7 @@ export default {
           <a class="secondary-action" href="#classement">Voir le classement</a>
         </div>
       </div>
-
-      <aside v-if="mainMatch" class="live-card" aria-label="Resume du match principal">
-        <div class="live-card-header">
-          <span class="live-pill">
-            {{ mainMatch.status === 'live' ? `En direct ${mainMatch.minute}` : mainMatch.time }}
-          </span>
-          <span>{{ mainMatch.stadium }}</span>
-        </div>
-
-        <div class="score-board">
-          <article class="club">
-            <span class="club-logo green">{{ getTeamCode(mainMatch.homeTeam) }}</span>
-            <strong>{{ mainMatch.homeTeam }}</strong>
-          </article>
-
-          <div class="score">
-            <strong>{{ mainMatch.homeScore ?? '-' }}</strong>
-            <span>-</span>
-            <strong>{{ mainMatch.awayScore ?? '-' }}</strong>
-          </div>
-
-          <article class="club">
-            <span class="club-logo red">{{ getTeamCode(mainMatch.awayTeam) }}</span>
-            <strong>{{ mainMatch.awayTeam }}</strong>
-          </article>
-        </div>
-
-        <div class="match-meta">
-          <span>{{ mainMatch.competition }}</span>
-          <span>{{ mainMatch.status }}</span>
-        </div>
-      </aside>
-
-      <aside v-else class="live-card" aria-label="Chargement des matchs">
-        <div class="live-card-header">
-          <span class="live-pill">Chargement</span>
-          <span>Botola Pro</span>
-        </div>
-        <p class="hero-text">Chargement des matchs...</p>
-      </aside>
+      <img src="/src/assets/image.png" alt="Hero Image" width="300" height="300" class="hero-image" />
     </section>
 
     <section class="quick-stats" aria-label="Statistiques rapides">
@@ -170,16 +142,30 @@ export default {
             <div>
               <p class="section-kicker">Calendrier</p>
               <h2>Matchs du jour</h2>
+              <p class="section-date">{{ date }}</p>
             </div>
-            <a href="#classement">Classement</a>
           </div>
 
           <div class="flex items-center justify-between">
             <div class="filter-row">
-              <button class="active">Tous</button>
-              <button>En direct</button>
-              <button>A venir</button>
-              <button>Termines</button>
+              <button
+                :class="{ active: status === 'live' }"
+                @click="loadMatches('live')"
+              >
+                En direct
+              </button>
+              <button
+                :class="{ active: status === 'Not started' }"
+                @click="loadMatches('Not started')"
+              >
+                A venir
+              </button>
+              <button
+                :class="{ active: status === 'Ended' }"
+                @click="loadMatches('Ended')"
+              >
+                Termines
+              </button>
             </div>
             <div class="bg-white p-2 rounded shadow-sm w-max">
               <select name="round" id="round" v-model="round" class="border rounded p-1">
@@ -208,7 +194,7 @@ export default {
 
           <div v-else class="match-list">
             <article
-              v-for="match in matches"
+              v-for="match in filteredMatches"
               :key="match.id"
               class="match-row"
               :class="{ 'is-live': match.status === 'live' }"
@@ -219,7 +205,7 @@ export default {
               <span class="team-name">{{ match.awayTeam }}</span>
             </article>
 
-            <article v-if="matches.length === 0" class="match-row">
+            <article v-if="filteredMatches.length === 0" class="match-row">
               <span class="match-time">-</span>
               <span class="team-name">Aucun match</span>
               <strong class="match-score">-</strong>
@@ -227,33 +213,7 @@ export default {
             </article>
           </div>
         </section>
-
-        <section id="news" class="panel news-panel">
-          <div class="section-heading">
-            <div>
-              <p class="section-kicker">Actualites</p>
-              <h2>A la une</h2>
-            </div>
-          </div>
-
-          <div class="news-grid">
-            <article class="news-card main-news">
-              <span>Derby</span>
-              <h3>Le derby de Casablanca relance la course au podium.</h3>
-              <p>Un match intense, beaucoup de duels et une fin de saison toujours ouverte.</p>
-            </article>
-            <article class="news-card">
-              <span>Mercato</span>
-              <h3>Les clubs preparent les premiers dossiers de l'ete.</h3>
-            </article>
-            <article class="news-card">
-              <span>Discipline</span>
-              <h3>La commission publie les decisions de la journee.</h3>
-            </article>
-          </div>
-        </section>
       </div>
-
       <aside class="side-column">
         <section id="classement" class="panel">
           <div class="section-heading compact">
@@ -495,6 +455,13 @@ export default {
   max-width: 780px;
 }
 
+.hero-image {
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  justify-self: center;
+}
+
 .eyebrow,
 .section-kicker {
   margin: 0;
@@ -628,8 +595,10 @@ h1 {
 
 .score {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 6px 10px;
   border-radius: 8px;
   background: var(--surface-soft);
   padding: 12px 18px;
@@ -638,8 +607,19 @@ h1 {
   font-weight: 950;
 }
 
-.score span {
+.score span:not(.match-date) {
   color: var(--muted);
+  font-size: 1.25rem;
+}
+
+.match-date {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin-top: 2px;
 }
 
 .match-meta {
@@ -702,6 +682,13 @@ h1 {
 .section-heading h2 {
   margin: 4px 0 0;
   font-size: clamp(1.35rem, 2vw, 1.7rem);
+}
+
+.section-date {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
 }
 
 .section-heading a {
